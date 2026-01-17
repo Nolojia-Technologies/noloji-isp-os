@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 30 npm run dev)",
+      "Bash(npx msw init:*)",
+      "Bash(timeout 10 npm run dev:mock)",
+      "Bash(set NEXT_PUBLIC_MSW_ENABLED=true)",
+      "Bash(npm run dev:*)",
+      "Bash(dir)",
+      "Bash(npm cache clean:*)",
+      "Bash(yarn --version)",
+      "Bash(npx next dev:*)",
+      "Read(//c/Users/DELL/Downloads/**)",
+      "Bash(mkdir:*)",
+      "Bash(npm view:*)",
+      "Bash(npm start)",
+      "Bash(curl:*)",
+      "Bash(set:*)",
+      "Bash(psql:*)",
+      "Bash(npm run migrate:*)",
+      "Bash(timeout 15 echo:*)",
+      "Bash(taskkill:*)",
+      "Bash(timeout 10 echo:*)",
+      "Bash(node scripts/run-migration.js:*)",
+      "Bash(timeout 5 echo \"Waiting for backend...\")",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout 5 echo:*)",
+      "Bash(node:*)",
+      "Bash(timeout 3 echo:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

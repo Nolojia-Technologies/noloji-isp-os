@@ -1,0 +1,631 @@
+{
+  "info": {
+    "name": "MikroTik RADIUS Backend API",
+    "description": "Complete API collection for MikroTik RADIUS backend testing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3001/api",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": ["{{baseUrl}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john\",\n  \"password\": \"password123\",\n  \"email\": \"john@example.com\",\n  \"full_name\": \"John Doe\",\n  \"phone\": \"+1234567890\",\n  \"plan_id\": 1,\n  \"valid_until\": \"2025-12-31T23:59:59Z\",\n  \"notes\": \"Test user\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": true,\n  \"plan_id\": 2,\n  \"valid_until\": \"2026-01-31T23:59:59Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get User Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/1/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "1", "sessions"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Vouchers",
+      "item": [
+        {
+          "name": "Get All Vouchers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vouchers",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers"]
+            }
+          }
+        },
+        {
+          "name": "Get Vouchers by Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vouchers?status=active",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Voucher by Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vouchers/ABC123XYZ789",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers", "ABC123XYZ789"]
+            }
+          }
+        },
+        {
+          "name": "Generate Vouchers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": 1,\n  \"quantity\": 10,\n  \"validity_days\": 30,\n  \"batch_name\": \"PROMO-JAN-2025\",\n  \"code_length\": 12,\n  \"include_pin\": true,\n  \"notes\": \"Promotional vouchers for January\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vouchers/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers", "generate"]
+            }
+          }
+        },
+        {
+          "name": "Update Voucher Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"disabled\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/vouchers/ABC123XYZ789/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers", "ABC123XYZ789", "status"]
+            }
+          }
+        },
+        {
+          "name": "Delete Voucher",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vouchers/ABC123XYZ789",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers", "ABC123XYZ789"]
+            }
+          }
+        },
+        {
+          "name": "Get Voucher Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/vouchers/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["vouchers", "stats"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Plans",
+      "item": [
+        {
+          "name": "Get All Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans"]
+            }
+          }
+        },
+        {
+          "name": "Get Plan by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/plans/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans", "1"]
+            }
+          }
+        },
+        {
+          "name": "Create Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Premium 20Mbps\",\n  \"description\": \"High-speed unlimited plan\",\n  \"upload_speed\": 20480,\n  \"download_speed\": 20480,\n  \"session_timeout\": null,\n  \"idle_timeout\": 300,\n  \"validity_days\": 30,\n  \"data_limit_mb\": null,\n  \"price\": 50.00,\n  \"currency\": \"USD\",\n  \"is_active\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans"]
+            }
+          }
+        },
+        {
+          "name": "Update Plan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 45.00,\n  \"upload_speed\": 25600,\n  \"download_speed\": 25600\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/plans/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans", "1"]
+            }
+          }
+        },
+        {
+          "name": "Delete Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/plans/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["plans", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sessions",
+      "item": [
+        {
+          "name": "Get All Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["sessions"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Sessions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["sessions", "active"]
+            }
+          }
+        },
+        {
+          "name": "Get Session by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["sessions", "1"]
+            }
+          }
+        },
+        {
+          "name": "Get Session Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/stats?period=24h",
+              "host": ["{{baseUrl}}"],
+              "path": ["sessions", "stats"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "24h"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Online Users Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sessions/online-count",
+              "host": ["{{baseUrl}}"],
+              "path": ["sessions", "online-count"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "RADIUS Logs",
+      "item": [
+        {
+          "name": "Get RADIUS Logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/radius/logs?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["radius", "logs"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get RADIUS Logs by Username",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/radius/logs?username=john",
+              "host": ["{{baseUrl}}"],
+              "path": ["radius", "logs"],
+              "query": [
+                {
+                  "key": "username",
+                  "value": "john"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "MikroTik API",
+      "item": [
+        {
+          "name": "Test Connection",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/test",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "test"]
+            }
+          }
+        },
+        {
+          "name": "Get System Resources",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/resources",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "resources"]
+            }
+          }
+        },
+        {
+          "name": "Get Interface Statistics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/interfaces",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "interfaces"]
+            }
+          }
+        },
+        {
+          "name": "Check RADIUS Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/radius-config",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "radius-config"]
+            }
+          }
+        },
+        {
+          "name": "Get Active Hotspot Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/hotspot/active",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "hotspot", "active"]
+            }
+          }
+        },
+        {
+          "name": "Get All Hotspot Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/hotspot/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "hotspot", "users"]
+            }
+          }
+        },
+        {
+          "name": "Create Hotspot User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"guest\",\n  \"password\": \"guest123\",\n  \"profile\": \"default\",\n  \"comment\": \"Guest user created via API\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/hotspot/users",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "hotspot", "users"]
+            }
+          }
+        },
+        {
+          "name": "Remove Hotspot User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/hotspot/users/guest",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "hotspot", "users", "guest"]
+            }
+          }
+        },
+        {
+          "name": "Disconnect User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/hotspot/disconnect/john",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "hotspot", "disconnect", "john"]
+            }
+          }
+        },
+        {
+          "name": "Disconnect by MAC",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/hotspot/disconnect-mac/AA:BB:CC:DD:EE:FF",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "hotspot", "disconnect-mac", "AA:BB:CC:DD:EE:FF"]
+            }
+          }
+        },
+        {
+          "name": "Get All Simple Queues",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/queues",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "queues"]
+            }
+          }
+        },
+        {
+          "name": "Add Simple Queue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"queue-john\",\n  \"target\": \"10.5.50.10/32\",\n  \"upload_limit\": 5120,\n  \"download_limit\": 10240,\n  \"comment\": \"John's bandwidth limit\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/queues",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "queues"]
+            }
+          }
+        },
+        {
+          "name": "Update Simple Queue",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"upload_limit\": 10240,\n  \"download_limit\": 20480\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/queues/queue-john",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "queues", "queue-john"]
+            }
+          }
+        },
+        {
+          "name": "Remove Simple Queue",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/mikrotik/queues/queue-john",
+              "host": ["{{baseUrl}}"],
+              "path": ["mikrotik", "queues", "queue-john"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
