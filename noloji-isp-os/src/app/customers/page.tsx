@@ -92,12 +92,27 @@ export default function CustomersPage() {
 
       if (result.success) {
         setLastSyncTime(new Date());
-        if (!silent) {
-          toast({
-            title: 'Status Synced',
-            description: result.message
-          });
+
+        if (result.errors && result.errors.length > 0) {
+          // Show warning for partial failures
+          const errorDetails = result.errors.map((e: any) => `${e.router}: ${e.error}`).join('\n');
+          if (!silent) {
+            toast({
+              title: 'Sync Completed with Errors',
+              description: `Synced, but failed to connect to ${result.errors.length} router(s):\n${errorDetails}`,
+              variant: 'destructive',
+              duration: 5000
+            });
+          }
+        } else {
+          if (!silent) {
+            toast({
+              title: 'Status Synced',
+              description: result.message
+            });
+          }
         }
+
         await loadCustomers(); // Reload to show updated status
       } else {
         throw new Error(result.error || 'Sync failed');
