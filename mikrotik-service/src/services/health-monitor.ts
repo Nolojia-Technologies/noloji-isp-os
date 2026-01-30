@@ -89,8 +89,26 @@ export const healthMonitor = {
                 logger.warn(`Router ${router.name} is offline`);
             }
         } catch (error: any) {
-            await db.updateRouterHealth(router.id, { status: 'offline' });
-            logger.error(`Health check failed for ${router.name}`, { error: error.message });
+            // If API connection fails, check if we've had recent RADIUS activity (heartbeat)
+            // If the router updated its status recently (e.g. via RADIUS Acct), don't mark it offline yet.
+            const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
+
+            // We need to fetch the fresh router record to check last_health_check
+            const freshRouter = await db.getRouterById(router.id);
+
+            let shouldMarkOffline = true;
+            if (freshRouter && freshRouter.last_health_check) {
+                const lastCheck = new Date(freshRouter.last_health_check).getTime();
+                if (Date.now() - lastCheck < OFFLINE_THRESHOLD_MS) {
+                    shouldMarkOffline = false;
+                    logger.debug(`Router ${router.name} API failed, but has recent activity (${Math.round((Date.now() - lastCheck) / 1000)}s ago). Keeping Online.`);
+                }
+            }
+
+            if (shouldMarkOffline) {
+                await db.updateRouterHealth(router.id, { status: 'offline' });
+                logger.error(`Health check failed for ${router.name}`, { error: error.message });
+            }
         }
     },
 };

@@ -52,6 +52,9 @@ export interface Customer {
     connection_type: string;
     is_active: boolean;
     valid_until: string | null;
+    mikrotik_profile?: string;
+    plans?: Plan;
+    routers?: Router;
 }
 
 export interface Plan {
@@ -171,6 +174,24 @@ export const db = {
         } catch (error) {
             logger.error('Failed to log command', { error });
         }
+    },
+
+    /**
+     * Get customer by username
+     */
+    async getCustomerByUsername(username: string): Promise<Customer | null> {
+        const { data, error } = await getSupabase()
+            .from('customers')
+            .select(`
+                *,
+                plans:plan_id (*),
+                routers:router_id (*)
+            `)
+            .eq('username', username)
+            .single();
+
+        if (error) return null;
+        return data;
     },
 
     /**

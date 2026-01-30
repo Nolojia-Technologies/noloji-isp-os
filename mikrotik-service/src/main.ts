@@ -12,7 +12,13 @@ import { encrypt } from './utils/encryption';
 const app = express();
 
 // Middleware
-app.use(cors());
+// Middleware
+app.use(cors({
+    origin: true, // Allow any origin (reflects request origin)
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // Health check endpoint
@@ -49,6 +55,59 @@ app.get('/api/routers/:id/resources', async (req, res) => {
 
         const resources = await mikrotikClient.getSystemResources(billingEnforcement.toRouterInfo(router));
         res.json(resources);
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get all profiles from a router (hotspot + PPPoE)
+app.get('/api/routers/:id/profiles', async (req, res) => {
+    try {
+        const router = await db.getRouterById(parseInt(req.params.id));
+        if (!router) {
+            return res.status(404).json({ error: 'Router not found' });
+        }
+
+        const routerInfo = billingEnforcement.toRouterInfo(router);
+        const profiles: { name: string; type: 'HOTSPOT' | 'PPPOE'; rateLimit?: string }[] = [];
+
+        // Get hotspot profiles
+        try {
+            const hotspotResult = await hotspotCommands.getProfiles(routerInfo);
+            if (hotspotResult.success && hotspotResult.data) {
+                for (const p of hotspotResult.data) {
+                    if (p.name && p.name !== 'default') {
+                        profiles.push({
+                            name: p.name,
+                            type: 'HOTSPOT',
+                            rateLimit: p['rate-limit'] || undefined
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            // Hotspot not configured
+        }
+
+        // Get PPPoE profiles
+        try {
+            const pppoeResult = await pppoeCommands.getProfiles(routerInfo);
+            if (pppoeResult.success && pppoeResult.data) {
+                for (const p of pppoeResult.data) {
+                    if (p.name && p.name !== 'default' && p.name !== 'default-encryption') {
+                        profiles.push({
+                            name: p.name,
+                            type: 'PPPOE',
+                            rateLimit: p['rate-limit'] || undefined
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            // PPPoE not configured
+        }
+
+        res.json({ success: true, profiles });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
     }
@@ -185,13 +244,17 @@ app.post('/api/customers/:id/provision', async (req, res) => {
 app.delete('/api/customers/:id/remove-from-mikrotik', async (req, res) => {
     try {
         const customerId = parseInt(req.params.id);
+        logger.info(`Attempting to delete customer ${customerId} from MikroTik`);
+
         const details = await db.getCustomerWithDetails(customerId);
 
         if (!details) {
-            return res.status(404).json({ error: 'Customer not found' });
+            logger.warn(`Customer ${customerId} not found in database`);
+            return res.status(404).json({ success: false, error: 'Customer not found in database' });
         }
 
         const { customer, router } = details;
+        logger.info(`Found customer ${customer.username}, connection_type: ${customer.connection_type}, router: ${router?.name || 'none'}`);
 
         if (!router) {
             return res.json({ success: true, message: 'No router assigned, nothing to delete' });
@@ -202,22 +265,38 @@ app.delete('/api/customers/:id/remove-from-mikrotik', async (req, res) => {
 
         let result;
         if (connType === 'HOTSPOT') {
-            // Disconnect and delete hotspot user
-            await hotspotCommands.disconnectUser(routerInfo, customer.username);
+            // Disconnect active session first (non-fatal if fails)
+            try {
+                await hotspotCommands.disconnectUser(routerInfo, customer.username);
+            } catch (disconnectError: any) {
+                logger.warn(`Could not disconnect hotspot user ${customer.username}: ${disconnectError.message}`);
+            }
+            // Delete hotspot user
             result = await hotspotCommands.deleteUser(routerInfo, customer.username);
         } else if (connType === 'PPPOE') {
-            // Disconnect and delete PPPoE secret
-            await pppoeCommands.disconnectSession(routerInfo, customer.username);
+            // Disconnect active session first (non-fatal if fails)
+            try {
+                await pppoeCommands.disconnectSession(routerInfo, customer.username);
+            } catch (disconnectError: any) {
+                logger.warn(`Could not disconnect PPPoE session ${customer.username}: ${disconnectError.message}`);
+            }
+            // Delete PPPoE secret
             result = await pppoeCommands.deleteSecret(routerInfo, customer.username);
         } else {
-            return res.json({ success: true, message: 'Unknown connection type' });
+            logger.warn(`Unknown connection type: ${connType} for customer ${customer.username}`);
+            return res.json({ success: true, message: `Unknown connection type: ${connType}` });
         }
 
-        logger.info(`Deleted customer ${customer.username} from MikroTik router ${router.name}`);
-        res.json({ success: result.success, message: `Removed from MikroTik` });
+        if (!result.success) {
+            logger.error(`Failed to delete ${customer.username} from MikroTik: ${result.error}`);
+            return res.status(500).json({ success: false, error: result.error });
+        }
+
+        logger.info(`Successfully deleted customer ${customer.username} from MikroTik router ${router.name}`);
+        res.json({ success: true, message: `Removed ${customer.username} from MikroTik router ${router.name}`, data: result.data });
     } catch (error: any) {
-        logger.error('Failed to delete customer from MikroTik', { error: error.message });
-        res.status(500).json({ error: error.message });
+        logger.error('Failed to delete customer from MikroTik', { error: error.message, stack: error.stack });
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
@@ -330,7 +409,7 @@ app.post('/api/customers/import-from-mikrotik', async (req, res) => {
                             continue;
                         }
 
-                        // Create customer
+                        // Create customer with MikroTik profile
                         const { data: newCustomer, error } = await supabase
                             .from('customers')
                             .insert({
@@ -340,7 +419,8 @@ app.post('/api/customers/import-from-mikrotik', async (req, res) => {
                                 router_id: router.id,
                                 is_active: user.disabled !== 'true',
                                 is_online: false,
-                                full_name: user.comment || null
+                                full_name: user.comment || null,
+                                mikrotik_profile: user.profile || null
                             })
                             .select()
                             .single();
@@ -348,7 +428,12 @@ app.post('/api/customers/import-from-mikrotik', async (req, res) => {
                         if (error) {
                             errors.push(`Hotspot ${user.name}: ${error.message}`);
                         } else {
-                            importedUsers.push({ username: user.name, type: 'HOTSPOT', router: router.name });
+                            importedUsers.push({
+                                username: user.name,
+                                type: 'HOTSPOT',
+                                router: router.name,
+                                mikrotik_profile: user.profile || null
+                            });
                         }
                     }
                 }
@@ -375,7 +460,7 @@ app.post('/api/customers/import-from-mikrotik', async (req, res) => {
                             continue;
                         }
 
-                        // Create customer
+                        // Create customer with MikroTik profile
                         const { data: newCustomer, error } = await supabase
                             .from('customers')
                             .insert({
@@ -385,7 +470,8 @@ app.post('/api/customers/import-from-mikrotik', async (req, res) => {
                                 router_id: router.id,
                                 is_active: secret.disabled !== 'true',
                                 is_online: false,
-                                full_name: secret.comment || null
+                                full_name: secret.comment || null,
+                                mikrotik_profile: secret.profile || null
                             })
                             .select()
                             .single();
@@ -393,7 +479,12 @@ app.post('/api/customers/import-from-mikrotik', async (req, res) => {
                         if (error) {
                             errors.push(`PPPoE ${secret.name}: ${error.message}`);
                         } else {
-                            importedUsers.push({ username: secret.name, type: 'PPPOE', router: router.name });
+                            importedUsers.push({
+                                username: secret.name,
+                                type: 'PPPOE',
+                                router: router.name,
+                                mikrotik_profile: secret.profile || null
+                            });
                         }
                     }
                 }
@@ -485,38 +576,51 @@ app.post('/api/customers/sync-online-status', async (req, res) => {
 
         // Collect all active users from all routers
         const activeUsernames = new Set<string>();
+        const routerErrors: { router: string; error: string }[] = [];
 
-        for (const router of onlineRouters) {
+        // Collect active users from all routers in parallel
+        await Promise.all(onlineRouters.map(async (router) => {
             const routerInfo = billingEnforcement.toRouterInfo(router);
 
             try {
-                // Try to get hotspot active users (regardless of role, in case role isn't set)
+                // Try to get hotspot active users
+                let hotspotSuccess = false;
                 try {
                     const hotspotResult = await hotspotCommands.getActiveUsers(routerInfo);
                     if (hotspotResult.success && hotspotResult.data) {
                         hotspotResult.data.forEach((user: any) => {
                             if (user.user) activeUsernames.add(user.user);
                         });
+                        hotspotSuccess = true;
                     }
                 } catch (e) {
-                    // Hotspot not configured, skip
+                    // Hotspot not configured or other error
                 }
 
-                // Try to get PPPoE active sessions (regardless of role)
+                // Try to get PPPoE active sessions
+                let pppoeSuccess = false;
                 try {
                     const pppoeResult = await pppoeCommands.getActiveSessions(routerInfo);
                     if (pppoeResult.success && pppoeResult.data) {
                         pppoeResult.data.forEach((session: any) => {
                             if (session.name) activeUsernames.add(session.name);
                         });
+                        pppoeSuccess = true;
                     }
                 } catch (e) {
-                    // PPPoE not configured, skip
+                    // PPPoE not configured or other error
                 }
+
+                // If both failed to return data (and at least one should have worked if configured), consider it a partial connection failure?
+                // Actually, hotspotCommands/pppoeCommands throw if connection fails.
+                // If we got here, connection likely worked but maybe no services active. 
+                // However, to be safe, let's catch the outer try/catch which wraps the core logic.
+
             } catch (error: any) {
                 logger.warn(`Failed to get active users from router ${router.name}`, { error: error.message });
+                routerErrors.push({ router: router.name, error: error.message });
             }
-        }
+        }));
 
         logger.info(`Found ${activeUsernames.size} active users across all routers`);
 
@@ -527,6 +631,7 @@ app.post('/api/customers/sync-online-status', async (req, res) => {
             .neq('id', 0); // Update all
 
         // Update active users to online
+        let updatedCount = 0;
         if (activeUsernames.size > 0) {
             const { data: updatedCustomers, error } = await supabase
                 .from('customers')
@@ -538,25 +643,70 @@ app.post('/api/customers/sync-online-status', async (req, res) => {
                 logger.error('Failed to update online status', { error: error.message });
             }
 
-            const updatedCount = updatedCustomers?.length || 0;
+            updatedCount = updatedCustomers?.length || 0;
             logger.info(`Updated ${updatedCount} customers to online status`);
-
-            res.json({
-                success: true,
-                message: `Synced online status. ${activeUsernames.size} active users found, ${updatedCount} customers updated`,
-                activeUsers: Array.from(activeUsernames),
-                updated: updatedCount
-            });
-        } else {
-            res.json({
-                success: true,
-                message: 'All customers marked offline (no active sessions found)',
-                activeUsers: [],
-                updated: 0
-            });
         }
+
+        res.json({
+            success: true,
+            message: `Synced online status. ${activeUsernames.size} active users found, ${updatedCount} customers updated. ${routerErrors.length > 0 ? `${routerErrors.length} routers failed.` : ''}`,
+            activeUsers: Array.from(activeUsernames),
+            updated: updatedCount,
+            errors: routerErrors
+        });
     } catch (error: any) {
         logger.error('Failed to sync online status', { error: error.message });
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Sync active users endpoint (called by MikroTik script)
+app.post('/api/callback/sync-active-users', async (req, res) => {
+    try {
+        const { router_identity, users } = req.body;
+        const supabase = (await import('./services/database')).getSupabase();
+
+        let routerId: number | null = null;
+
+        // Try to find router and update health
+        if (router_identity) {
+            const { data: routers } = await supabase.from('routers').select('id, name').eq('name', router_identity);
+            if (routers && routers.length > 0) {
+                routerId = routers[0].id;
+                await supabase.from('routers').update({
+                    status: 'online',
+                    last_health_check: new Date().toISOString()
+                }).eq('id', routerId);
+            }
+        }
+
+        if (!users || !Array.isArray(users)) {
+            return res.json({ success: true, message: 'No users provided' });
+        }
+
+        logger.info(`Received sync from router '${router_identity}': ${users.length} active users`);
+
+        if (users.length > 0) {
+            // Mark these users as online
+            await supabase.from('customers').update({ is_online: true }).in('username', users);
+
+            // Mark others as offline if we matched a router
+            if (routerId) {
+                // Construct the list for the 'not' filter properly
+                const userList = `(${users.map(u => `"${u}"`).join(',')})`;
+                await supabase.from('customers')
+                    .update({ is_online: false })
+                    .eq('router_id', routerId)
+                    .not('username', 'in', userList);
+            }
+        } else if (routerId) {
+            // Zero users active on this router
+            await supabase.from('customers').update({ is_online: false }).eq('router_id', routerId);
+        }
+
+        res.json({ success: true, updated: users.length });
+    } catch (error: any) {
+        logger.error('Sync Callback Error', { error: error.message });
         res.status(500).json({ error: error.message });
     }
 });
@@ -831,11 +981,18 @@ app.get('/api/customers/:id/cpe/wifi', async (req, res) => {
 // Start Server
 // ============================================
 
+// Initialize RADIUS Server
+import { RadiusServer } from './radius/server';
+const radiusServer = new RadiusServer();
+
 const server = app.listen(config.port, () => {
     logger.info(`MikroTik Service running on port ${config.port}`);
 
     // Start health monitor
     healthMonitor.start();
+
+    // Start RADIUS Server
+    radiusServer.start();
 });
 
 // Graceful shutdown

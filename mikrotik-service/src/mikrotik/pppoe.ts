@@ -77,8 +77,14 @@ export const pppoeCommands = {
             '?name': username,
         });
 
-        if (!findResult.success || !findResult.data?.[0]) {
-            return { success: false, error: `Secret ${username} not found` };
+        if (!findResult.success) {
+            return { success: false, error: `Failed to search for secret: ${findResult.error}` };
+        }
+
+        if (!findResult.data?.[0]) {
+            // Secret not found = already deleted, treat as success
+            logger.info(`PPPoE secret ${username} not found on ${router.name} (already deleted or never existed)`);
+            return { success: true, data: [{ message: 'Secret not found on router (already deleted)' }] };
         }
 
         const secretId = findResult.data[0]['.id'];

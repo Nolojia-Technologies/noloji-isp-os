@@ -81,10 +81,21 @@ export class MikrotikApiClient {
             const cmdParts = [command];
             if (params) {
                 Object.entries(params).forEach(([key, value]) => {
-                    cmdParts.push(`=${key}=${value}`);
+                    // Query parameters (starting with ?) use different syntax
+                    if (key.startsWith('?')) {
+                        // Query: ?name=value (no leading =)
+                        cmdParts.push(`${key}=${value}`);
+                    } else if (key.startsWith('.')) {
+                        // ID reference: =.id=*1
+                        cmdParts.push(`=${key}=${value}`);
+                    } else {
+                        // Regular parameter: =key=value
+                        cmdParts.push(`==${value}` === value ? `=${key}` : `=${key}=${value}`);
+                    }
                 });
             }
 
+            logger.debug(`Executing on ${router.name}: ${cmdParts.join(' ')}`);
             const result = await client.write(cmdParts);
 
             const executionTime = Date.now() - startTime;

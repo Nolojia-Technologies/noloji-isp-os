@@ -79,8 +79,14 @@ export const hotspotCommands = {
             '?name': username,
         });
 
-        if (!findResult.success || !findResult.data?.[0]) {
-            return { success: false, error: `User ${username} not found` };
+        if (!findResult.success) {
+            return { success: false, error: `Failed to search for user: ${findResult.error}` };
+        }
+
+        if (!findResult.data?.[0]) {
+            // User not found = already deleted, treat as success
+            logger.info(`Hotspot user ${username} not found on ${router.name} (already deleted or never existed)`);
+            return { success: true, data: [{ message: 'User not found on router (already deleted)' }] };
         }
 
         const userId = findResult.data[0]['.id'];

@@ -30,7 +30,7 @@ export const config = {
     mikrotik: {
         defaultApiPort: 8728,
         defaultApiSslPort: 8729,
-        connectionTimeout: 10000, // 10 seconds
+        connectionTimeout: 3000, // 3 seconds
         commandTimeout: 30000, // 30 seconds
         healthCheckInterval: 60000, // 1 minute
     },

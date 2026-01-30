@@ -30,7 +30,8 @@
       "Bash(findstr:*)",
       "Bash(timeout 5 echo:*)",
       "Bash(node:*)",
-      "Bash(timeout 3 echo:*)"
+      "Bash(timeout 3 echo:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
