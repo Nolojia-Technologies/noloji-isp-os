@@ -327,23 +327,23 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto p-4 md:p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Customers</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Customers</h1>
           <p className="text-muted-foreground">Manage your ISP customers</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
           {/* Live Status Indicator */}
-          <div className="flex items-center gap-3 px-3 py-2 bg-muted rounded-lg">
+          <div className="flex items-center justify-between w-full sm:w-auto gap-3 px-3 py-2 bg-muted rounded-lg">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${autoSync ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
               <span className="text-sm font-medium">{autoSync ? 'Live' : 'Paused'}</span>
             </div>
-            <div className="text-xs text-muted-foreground">
+            <div className="text-xs text-muted-foreground whitespace-nowrap">
               {lastSyncTime ? `Updated ${formatLastSyncTime()}` : 'Not synced'}
             </div>
-            <div className="flex items-center gap-2 border-l pl-3">
+            <div className="flex items-center gap-2 border-l pl-3 ml-auto sm:ml-0">
               <Switch
                 id="auto-sync"
                 checked={autoSync}
@@ -353,18 +353,18 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={importFromMikroTik} disabled={importing}>
+          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+            <Button variant="outline" size="sm" onClick={importFromMikroTik} disabled={importing} className="whitespace-nowrap">
               <Download className={`w-4 h-4 mr-2 ${importing ? 'animate-pulse' : ''}`} />
-              {importing ? 'Importing...' : 'Import from MikroTik'}
+              {importing ? 'Importing...' : 'Import'}
             </Button>
-            <Button variant="outline" onClick={() => syncOnlineStatus(false)} disabled={syncing}>
+            <Button variant="outline" size="sm" onClick={() => syncOnlineStatus(false)} disabled={syncing} className="whitespace-nowrap">
               <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Syncing...' : 'Sync Status'}
+              {syncing ? 'Syncing...' : 'Sync'}
             </Button>
-            <Button onClick={() => router.push('/customers/new')}>
+            <Button size="sm" onClick={() => router.push('/customers/new')} className="whitespace-nowrap">
               <Plus className="w-4 h-4 mr-2" />
-              Add Customer
+              Add
             </Button>
           </div>
         </div>

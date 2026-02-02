@@ -261,18 +261,18 @@ export default function RoutersPage() {
   };
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto p-4 md:p-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Routers</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">Routers</h1>
           <p className="text-muted-foreground">Manage MikroTik routers and integration</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setShowGuide(!showGuide)} variant="outline">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <Button onClick={() => setShowGuide(!showGuide)} variant="outline" className="flex-1 md:flex-none">
             <BookOpen className="w-4 h-4 mr-2" />
             Setup Guide
           </Button>
-          <Button onClick={() => setShowForm(true)} disabled={loading}>
+          <Button onClick={() => setShowForm(true)} disabled={loading} className="flex-1 md:flex-none">
             <Plus className="w-4 h-4 mr-2" />
             Add Router
           </Button>

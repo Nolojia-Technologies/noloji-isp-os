@@ -112,7 +112,15 @@ const secondaryItems = [
   },
 ];
 
-export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
+// ... imports
+
+// ... navigationItems and secondaryItems definitions
+
+interface SidebarContentProps {
+  collapsed?: boolean;
+}
+
+export function SidebarContent({ collapsed = false }: SidebarContentProps) {
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = React.useState("");
 
@@ -125,14 +133,9 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
   }, [searchQuery]);
 
   return (
-    <div
-      className={cn(
-        "fixed left-0 top-0 z-40 h-full bg-card border-r border-border sidebar-transition",
-        collapsed ? "w-16" : "w-64"
-      )}
-    >
+    <div className="flex flex-col h-full bg-card">
       {/* Header */}
-      <div className="flex h-16 items-center justify-between px-4 border-b border-border">
+      <div className="flex h-16 items-center justify-between px-4 border-b border-border shrink-0">
         {!collapsed && (
           <div className="flex items-center space-x-2">
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
@@ -141,27 +144,11 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
             <span className="font-semibold text-lg">Noloji ISP</span>
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onToggle}
-          className={cn(
-            "h-8 w-8",
-            collapsed && "mx-auto"
-          )}
-        >
-          <ChevronLeft
-            className={cn(
-              "h-4 w-4 transition-transform",
-              collapsed && "rotate-180"
-            )}
-          />
-        </Button>
       </div>
 
       {/* Search */}
       {!collapsed && (
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border shrink-0">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 text-muted-foreground -translate-y-1/2" />
             <Input
@@ -243,7 +230,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
 
       {/* User Profile (collapsed state) */}
       {collapsed && (
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border shrink-0">
           <Button variant="ghost" size="icon" className="w-full h-10">
             <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
               <span className="text-xs text-primary-foreground font-medium">
@@ -254,5 +241,44 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
         </div>
       )}
     </div>
+  );
+}
+
+export function Sidebar({ collapsed = false, onToggle }: SidebarProps) {
+  return (
+    <>
+      {/* Desktop Sidebar */}
+      <div
+        className={cn(
+          "hidden lg:block fixed left-0 top-0 z-40 h-full border-r border-border sidebar-transition",
+          collapsed ? "w-16" : "w-64"
+        )}
+      >
+        <SidebarContent collapsed={collapsed} />
+
+        {/* Toggle Button (Desktop Only) */}
+        {!collapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            className="absolute right-[-12px] top-6 h-6 w-6 rounded-full border bg-background shadow-md hidden lg:flex"
+          >
+            <ChevronLeft className="h-3 w-3" />
+          </Button>
+        )}
+
+        {collapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggle}
+            className="absolute left-1/2 -translate-x-1/2 bottom-4 h-8 w-8 hidden lg:flex"
+          >
+            <ChevronLeft className="h-4 w-4 rotate-180" />
+          </Button>
+        )}
+      </div>
+    </>
   );
 }
