@@ -194,6 +194,7 @@ export default function RoutersPage() {
       radius_secret: '', // Don't show secret
       location: router.location || '',
       role: router.role || 'hotspot',
+      connection_mode: router.connection_mode || 'radius',
       is_active: router.is_active !== false
     });
     setShowForm(true);
@@ -254,6 +255,7 @@ export default function RoutersPage() {
       radius_secret: '',
       location: '',
       role: 'hotspot',
+      connection_mode: 'radius',
       is_active: true
     });
     setEditingRouter(null);
