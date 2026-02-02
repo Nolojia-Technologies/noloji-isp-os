@@ -7,7 +7,20 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Sidebar, SidebarContent } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 
-// ... existing imports
+import { useAuth } from "@/contexts/auth-context";
+import { LayoutSkeleton } from "@/components/layout/layout-skeleton";
+import NextTopLoader from "nextjs-toploader";
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+// Public routes that don't require authentication
+const PUBLIC_ROUTES = ['/login', '/register', '/'];
+
+// Routes that have their own layouts (don't apply AppLayout sidebar/header)
+const CUSTOM_LAYOUT_ROUTES = ['/admin', '/landlord'];
 
 export function AppLayout({ children, className }: AppLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
