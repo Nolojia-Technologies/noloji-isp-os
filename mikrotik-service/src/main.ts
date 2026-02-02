@@ -8,6 +8,10 @@ import { billingEnforcement } from './services/billing-enforcement';
 import { db } from './services/database';
 import { mikrotikClient, hotspotCommands, pppoeCommands, queueCommands } from './mikrotik';
 import { encrypt } from './utils/encryption';
+import callbackRoutes from './routes/callbacks';
+import { generateSetupScripts } from './services/script-generator';
+import crypto from 'crypto';
+
 
 const app = express();
 
@@ -24,6 +28,96 @@ app.use(express.json());
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', service: 'mikrotik-service' });
+});
+
+// ============================================
+// Callback Routes (Router Push Model)
+// ============================================
+app.use('/api/callback', callbackRoutes);
+
+// ============================================
+// Router Setup Scripts
+// ============================================
+
+// Get setup scripts for a router
+app.get('/api/routers/:id/setup-scripts', async (req, res) => {
+    try {
+        const { getSupabase } = await import('./services/database');
+        const supabase = getSupabase();
+
+        const { data: router, error } = await supabase
+            .from('routers')
+            .select('*')
+            .eq('id', parseInt(req.params.id))
+            .single();
+
+        if (error || !router) {
+            return res.status(404).json({ error: 'Router not found' });
+        }
+
+        // Generate callback token if not exists
+        let callbackToken = router.callback_token;
+        if (!callbackToken) {
+            callbackToken = crypto.randomBytes(32).toString('hex');
+            await supabase
+                .from('routers')
+                .update({ callback_token: callbackToken })
+                .eq('id', router.id);
+        }
+
+        // Determine service URL
+        const serviceUrl = router.public_url ||
+            process.env.SERVICE_PUBLIC_URL ||
+            `http://localhost:${config.port}`;
+
+        const scripts = generateSetupScripts({
+            routerName: router.name,
+            routerId: router.id,
+            nasIdentifier: router.nas_identifier || router.name.replace(/\s+/g, '-').toLowerCase(),
+            radiusSecret: router.radius_secret || 'change-me',
+            callbackToken,
+            serviceUrl,
+            routerRole: router.role || 'pppoe'
+        });
+
+        res.json({
+            success: true,
+            routerName: router.name,
+            routerId: router.id,
+            serviceUrl,
+            scripts
+        });
+    } catch (error: any) {
+        logger.error('Failed to generate setup scripts', { error: error.message });
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Regenerate callback token
+app.post('/api/routers/:id/regenerate-token', async (req, res) => {
+    try {
+        const { getSupabase } = await import('./services/database');
+        const supabase = getSupabase();
+
+        const newToken = crypto.randomBytes(32).toString('hex');
+
+        const { error } = await supabase
+            .from('routers')
+            .update({ callback_token: newToken })
+            .eq('id', parseInt(req.params.id));
+
+        if (error) {
+            return res.status(500).json({ error: error.message });
+        }
+
+        res.json({
+            success: true,
+            message: 'Token regenerated. Please update router scripts.',
+            note: 'Existing router scripts will stop working until updated.'
+        });
+    } catch (error: any) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // ============================================
@@ -44,6 +138,36 @@ app.post('/api/routers/:id/test', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// Diagnose router connection (detailed troubleshooting)
+app.post('/api/routers/:id/diagnose', async (req, res) => {
+    try {
+        const router = await db.getRouterById(parseInt(req.params.id));
+        if (!router) {
+            return res.status(404).json({ error: 'Router not found' });
+        }
+
+        logger.info(`Diagnosing connection to router ${router.name} (${router.host}:${router.api_port})`);
+
+        const diagnostics = await mikrotikClient.diagnoseConnection(billingEnforcement.toRouterInfo(router));
+
+        // Log diagnostics
+        diagnostics.details.forEach(detail => logger.info(detail));
+
+        res.json({
+            routerName: router.name,
+            host: router.host,
+            port: router.api_port,
+            username: router.api_username,
+            passwordProvided: !!router.api_password,
+            ...diagnostics
+        });
+    } catch (error: any) {
+        logger.error(`Diagnosis failed: ${error.message}`);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 
 // Get router system resources
 app.get('/api/routers/:id/resources', async (req, res) => {

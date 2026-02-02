@@ -3,6 +3,7 @@ import { RouterOSAPI } from 'node-routeros';
 import logger from '../utils/logger';
 import { decrypt } from '../utils/encryption';
 import config from '../config';
+import net from 'net';
 
 export interface RouterCredentials {
     host: string;
@@ -30,12 +31,136 @@ export interface CommandResult {
     executionTime?: number;
 }
 
+export interface ConnectionDiagnostics {
+    reachable: boolean;
+    portOpen: boolean;
+    authenticated: boolean;
+    identity?: string;
+    error?: string;
+    latencyMs?: number;
+    details: string[];
+}
+
+/**
+ * Test if a port is reachable
+ */
+async function testPort(host: string, port: number, timeoutMs: number = 5000): Promise<{ open: boolean; latencyMs: number; error?: string }> {
+    return new Promise((resolve) => {
+        const startTime = Date.now();
+        const socket = new net.Socket();
+
+        socket.setTimeout(timeoutMs);
+
+        socket.on('connect', () => {
+            const latencyMs = Date.now() - startTime;
+            socket.destroy();
+            resolve({ open: true, latencyMs });
+        });
+
+        socket.on('timeout', () => {
+            socket.destroy();
+            resolve({ open: false, latencyMs: timeoutMs, error: 'Connection timed out' });
+        });
+
+        socket.on('error', (err: any) => {
+            const latencyMs = Date.now() - startTime;
+            socket.destroy();
+            resolve({ open: false, latencyMs, error: err.message || 'Connection refused' });
+        });
+
+        socket.connect(port, host);
+    });
+}
+
 /**
  * MikroTik API Client
  * Handles secure communication with MikroTik routers
  */
 export class MikrotikApiClient {
     private connections: Map<number, RouterOSAPI> = new Map();
+
+    /**
+     * Diagnose connection issues to a router
+     */
+    async diagnoseConnection(router: RouterInfo): Promise<ConnectionDiagnostics> {
+        const diagnostics: ConnectionDiagnostics = {
+            reachable: false,
+            portOpen: false,
+            authenticated: false,
+            details: []
+        };
+
+        // Step 1: Test if host is reachable on API port
+        diagnostics.details.push(`Testing connection to ${router.host}:${router.api_port}...`);
+
+        const portTest = await testPort(router.host, router.api_port, 10000);
+        diagnostics.latencyMs = portTest.latencyMs;
+
+        if (!portTest.open) {
+            diagnostics.reachable = false;
+            diagnostics.portOpen = false;
+            diagnostics.error = portTest.error || 'Port not reachable';
+            diagnostics.details.push(`❌ Port ${router.api_port} is not reachable: ${portTest.error}`);
+            diagnostics.details.push(`   Possible causes:`);
+            diagnostics.details.push(`   - Router IP is incorrect or router is powered off`);
+            diagnostics.details.push(`   - API service is not enabled on the router`);
+            diagnostics.details.push(`   - Firewall blocking port ${router.api_port}`);
+            diagnostics.details.push(`   - Wrong API port number`);
+            return diagnostics;
+        }
+
+        diagnostics.reachable = true;
+        diagnostics.portOpen = true;
+        diagnostics.details.push(`✓ Port ${router.api_port} is open (latency: ${portTest.latencyMs}ms)`);
+
+        // Step 2: Try to authenticate
+        diagnostics.details.push(`Attempting authentication with user '${router.api_username}'...`);
+
+        try {
+            const client = new RouterOSAPI({
+                host: router.host,
+                port: router.api_port,
+                user: router.api_username,
+                password: router.api_password,
+                timeout: 15000, // 15 second timeout for auth
+            });
+
+            await client.connect();
+            diagnostics.authenticated = true;
+            diagnostics.details.push(`✓ Authentication successful`);
+
+            // Get router identity
+            try {
+                const result = await client.write(['/system/identity/print']);
+                if (result && result[0]) {
+                    diagnostics.identity = result[0].name;
+                    diagnostics.details.push(`✓ Router identity: ${result[0].name}`);
+                }
+            } catch (e) {
+                diagnostics.details.push(`⚠ Could not get router identity`);
+            }
+
+            await client.close();
+        } catch (error: any) {
+            diagnostics.authenticated = false;
+            diagnostics.error = error.message;
+            diagnostics.details.push(`❌ Authentication failed: ${error.message}`);
+
+            if (error.message.includes('cannot log in')) {
+                diagnostics.details.push(`   Possible causes:`);
+                diagnostics.details.push(`   - Username is incorrect`);
+                diagnostics.details.push(`   - Password is incorrect`);
+                diagnostics.details.push(`   - User account is disabled on router`);
+                diagnostics.details.push(`   - User doesn't have API access permission`);
+            } else if (error.message.includes('timeout')) {
+                diagnostics.details.push(`   Possible causes:`);
+                diagnostics.details.push(`   - Network latency is too high`);
+                diagnostics.details.push(`   - Router is overloaded`);
+            }
+        }
+
+        return diagnostics;
+    }
 
     /**
      * Get or create a connection to a router
@@ -52,20 +177,28 @@ export class MikrotikApiClient {
             this.connections.delete(router.id);
         }
 
+        // Log connection attempt with masked password
+        logger.debug(`Connecting to router ${router.name} at ${router.host}:${router.api_port} as ${router.api_username}`);
+
         // Create new connection - use plain password from database
+        // Increased timeout for more reliable connections
         const client = new RouterOSAPI({
             host: router.host,
             port: router.api_port,
             user: router.api_username,
             password: router.api_password,
-            timeout: config.mikrotik.connectionTimeout,
+            timeout: 15000, // 15 seconds for better reliability
         });
 
-        await client.connect();
-        this.connections.set(router.id, client);
-
-        logger.info(`Connected to router ${router.name} (${router.host})`);
-        return client;
+        try {
+            await client.connect();
+            this.connections.set(router.id, client);
+            logger.info(`Connected to router ${router.name} (${router.host})`);
+            return client;
+        } catch (error: any) {
+            logger.error(`Failed to connect to router ${router.name} (${router.host}:${router.api_port}): ${error.message}`);
+            throw new Error(`Connection to router ${router.name} failed: ${error.message}`);
+        }
     }
 
     /**

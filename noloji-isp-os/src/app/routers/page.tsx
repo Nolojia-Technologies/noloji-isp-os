@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/lib/supabase';
 import { mikrotikApi } from '@/lib/mikrotik-api';
 import { toast } from '@/components/ui/use-toast';
-import { Plus, Edit, Trash2, Router, MapPin, Activity, Users, HelpCircle, BookOpen, CheckCircle, ChevronDown, ChevronUp, Cpu, HardDrive, Clock, RefreshCw, Wifi, Cable } from 'lucide-react';
+import { Plus, Edit, Trash2, Router, MapPin, Activity, Users, HelpCircle, BookOpen, CheckCircle, ChevronDown, ChevronUp, Cpu, HardDrive, Clock, RefreshCw, Wifi, Cable, Stethoscope, X, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 export default function RoutersPage() {
   const [routers, setRouters] = useState<any[]>([]);
@@ -16,6 +16,10 @@ export default function RoutersPage() {
   const [showForm, setShowForm] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
   const [editingRouter, setEditingRouter] = useState<any>(null);
+  const [diagnosing, setDiagnosing] = useState<number | null>(null);
+  const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
+  const [showScripts, setShowScripts] = useState<number | null>(null);
+  const [setupScripts, setSetupScripts] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: '',
     host: '',
@@ -26,6 +30,7 @@ export default function RoutersPage() {
     radius_secret: '',
     location: '',
     role: 'hotspot',
+    connection_mode: 'radius', // Default to RADIUS mode for new routers
     is_active: true
   });
 
@@ -73,6 +78,50 @@ export default function RoutersPage() {
       toast({ title: 'Error', description: 'Failed to check router status', variant: 'destructive' });
     }
   };
+
+  const diagnoseRouter = async (routerId: number) => {
+    try {
+      setDiagnosing(routerId);
+      setDiagnosticResult(null);
+      toast({ title: 'Diagnosing...', description: 'Running connection diagnostics, this may take a few seconds' });
+
+      const result = await mikrotikApi.diagnoseRouterConnection(routerId);
+      setDiagnosticResult(result);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Diagnosis failed', variant: 'destructive' });
+      setDiagnosticResult({ error: error.message, details: ['Failed to run diagnostics'] });
+    }
+  };
+
+  const closeDiagnostics = () => {
+    setDiagnosing(null);
+    setDiagnosticResult(null);
+  };
+
+  const loadSetupScripts = async (routerId: number) => {
+    try {
+      setShowScripts(routerId);
+      setSetupScripts(null);
+      toast({ title: 'Loading...', description: 'Generating setup scripts' });
+
+      const result = await mikrotikApi.getSetupScripts(routerId);
+      setSetupScripts(result);
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to load scripts', variant: 'destructive' });
+      setSetupScripts({ error: error.message });
+    }
+  };
+
+  const closeScripts = () => {
+    setShowScripts(null);
+    setSetupScripts(null);
+  };
+
+  const copyToClipboard = (text: string, name: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: 'Copied!', description: `${name} copied to clipboard` });
+  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,6 +278,223 @@ export default function RoutersPage() {
           </Button>
         </div>
       </div>
+
+      {/* Diagnostic Modal */}
+      {diagnosing !== null && diagnosticResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-2xl max-h-[80vh] overflow-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Stethoscope className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold">Connection Diagnostics</h2>
+                </div>
+                <Button variant="ghost" size="sm" onClick={closeDiagnostics}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {/* Router Info */}
+              <div className="bg-muted/50 p-4 rounded-lg mb-4">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div><span className="text-muted-foreground">Router:</span> <strong>{diagnosticResult.routerName}</strong></div>
+                  <div><span className="text-muted-foreground">Host:</span> <strong>{diagnosticResult.host}:{diagnosticResult.port}</strong></div>
+                  <div><span className="text-muted-foreground">Username:</span> <strong>{diagnosticResult.username}</strong></div>
+                  <div><span className="text-muted-foreground">Password:</span> <strong>{diagnosticResult.passwordProvided ? '••••••••' : '(not set)'}</strong></div>
+                </div>
+              </div>
+
+              {/* Status indicators */}
+              <div className="flex gap-4 mb-4">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${diagnosticResult.portOpen ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+                  {diagnosticResult.portOpen ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  Port Open
+                </div>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${diagnosticResult.authenticated ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
+                  {diagnosticResult.authenticated ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                  Authenticated
+                </div>
+                {diagnosticResult.latencyMs && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    <Clock className="w-4 h-4" />
+                    {diagnosticResult.latencyMs}ms
+                  </div>
+                )}
+              </div>
+
+              {diagnosticResult.identity && (
+                <div className="bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 p-3 rounded-lg mb-4">
+                  <strong>Router Identity:</strong> {diagnosticResult.identity}
+                </div>
+              )}
+
+              {diagnosticResult.error && (
+                <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-3 rounded-lg mb-4">
+                  <strong>Error:</strong> {diagnosticResult.error}
+                </div>
+              )}
+
+              {/* Detailed logs */}
+              <div className="bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm">
+                <div className="text-gray-400 mb-2">Diagnostic Log:</div>
+                {diagnosticResult.details?.map((detail: string, i: number) => (
+                  <div key={i} className={`${detail.startsWith('✓') ? 'text-green-400' : detail.startsWith('❌') ? 'text-red-400' : detail.startsWith('⚠') ? 'text-yellow-400' : 'text-gray-300'}`}>
+                    {detail}
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 mt-4">
+                <Button onClick={closeDiagnostics}>Close</Button>
+                <Button variant="outline" onClick={() => diagnoseRouter(diagnosing)}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Re-run Diagnostics
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Setup Scripts Modal */}
+      {showScripts !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-4xl max-h-[90vh] overflow-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                  <h2 className="text-xl font-semibold">Router Setup Scripts</h2>
+                </div>
+                <Button variant="ghost" size="sm" onClick={closeScripts}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              {!setupScripts && (
+                <div className="flex items-center justify-center p-8">
+                  <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                  Generating scripts...
+                </div>
+              )}
+
+              {setupScripts?.error && (
+                <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 rounded-lg">
+                  <strong>Error:</strong> {setupScripts.error}
+                </div>
+              )}
+
+              {setupScripts?.scripts && (
+                <>
+                  <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg mb-4">
+                    <div className="text-sm mb-2">
+                      <strong>Router:</strong> {setupScripts.routerName}
+                    </div>
+                    <div className="text-sm mb-2">
+                      <strong>Service URL:</strong> {setupScripts.serviceUrl}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      These scripts configure your MikroTik router to connect to Nolojia Billing.
+                      Run them in your router's terminal (Winbox → New Terminal).
+                    </div>
+                  </div>
+
+                  {/* Full Setup Script */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-green-600">📋 Full Setup Script (Recommended)</h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => copyToClipboard(setupScripts.scripts.fullSetupScript, 'Full Setup Script')}
+                      >
+                        Copy
+                      </Button>
+                    </div>
+                    <div className="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-xs overflow-x-auto max-h-60">
+                      <pre className="whitespace-pre-wrap">{setupScripts.scripts.fullSetupScript}</pre>
+                    </div>
+                  </div>
+
+                  {/* Individual Scripts Accordion */}
+                  <details className="mb-4">
+                    <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+                      View Individual Scripts
+                    </summary>
+
+                    <div className="mt-4 space-y-4">
+                      {/* RADIUS Script */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">RADIUS Configuration</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(setupScripts.scripts.radiusScript, 'RADIUS Script')}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-xs overflow-x-auto max-h-40">
+                          <pre className="whitespace-pre-wrap">{setupScripts.scripts.radiusScript}</pre>
+                        </div>
+                      </div>
+
+                      {/* Heartbeat Script */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">Heartbeat Script</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(setupScripts.scripts.heartbeatScript, 'Heartbeat Script')}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-xs overflow-x-auto max-h-40">
+                          <pre className="whitespace-pre-wrap">{setupScripts.scripts.heartbeatScript}</pre>
+                        </div>
+                      </div>
+
+                      {/* Active Users Script */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">Active Users Sync Script</h4>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyToClipboard(setupScripts.scripts.activeUsersScript, 'Active Users Script')}
+                          >
+                            Copy
+                          </Button>
+                        </div>
+                        <div className="bg-gray-800 text-gray-200 p-3 rounded font-mono text-xs overflow-x-auto max-h-40">
+                          <pre className="whitespace-pre-wrap">{setupScripts.scripts.activeUsersScript}</pre>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+
+                  {/* Instructions */}
+                  <details className="mb-4">
+                    <summary className="cursor-pointer font-medium text-muted-foreground hover:text-foreground">
+                      📖 Setup Instructions
+                    </summary>
+                    <div className="mt-2 bg-muted/50 p-4 rounded-lg text-sm whitespace-pre-wrap">
+                      {setupScripts.scripts.instructions}
+                    </div>
+                  </details>
+                </>
+              )}
+
+              <div className="flex gap-2 mt-4">
+                <Button onClick={closeScripts}>Close</Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {showGuide && (
         <Card className="p-6 mb-6 bg-blue-50 dark:bg-blue-950 border-blue-200 dark:border-blue-800">
@@ -600,6 +866,23 @@ export default function RoutersPage() {
                     title="Check Status"
                   >
                     <RefreshCw className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => diagnoseRouter(router.id)}
+                    title="Diagnose Connection"
+                    disabled={diagnosing === router.id}
+                  >
+                    <Stethoscope className={`w-4 h-4 ${diagnosing === router.id ? 'animate-pulse' : ''}`} />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => loadSetupScripts(router.id)}
+                    title="Setup Scripts - Get MikroTik configuration scripts"
+                  >
+                    <BookOpen className="w-4 h-4" />
                   </Button>
                   <Button
                     variant="ghost"

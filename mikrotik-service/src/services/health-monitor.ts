@@ -53,17 +53,108 @@ export const healthMonitor = {
             for (const router of routers) {
                 await this.checkRouter(router as unknown as RouterInfo);
             }
+
+            // Also sync customer online status
+            await this.syncCustomerOnlineStatus(routers);
         } catch (error: any) {
             logger.error('Failed to check routers', { error: error.message });
         }
     },
 
     /**
+     * Sync customer online status from all routers
+     */
+    async syncCustomerOnlineStatus(routers: any[]): Promise<void> {
+        try {
+            const { hotspotCommands, pppoeCommands } = await import('../mikrotik');
+            const { getSupabase } = await import('./database');
+            const supabase = getSupabase();
+
+            const activeUsernames = new Set<string>();
+
+            for (const router of routers) {
+                if (!router.is_active) continue;
+
+                const routerInfo = {
+                    id: router.id,
+                    name: router.name,
+                    host: router.host,
+                    api_port: router.api_port,
+                    api_username: router.api_username,
+                    api_password: router.api_password,
+                    use_ssl: router.use_ssl,
+                    role: router.role,
+                };
+
+                // Get hotspot active users
+                try {
+                    const hotspotResult = await hotspotCommands.getActiveUsers(routerInfo);
+                    if (hotspotResult.success && hotspotResult.data) {
+                        hotspotResult.data.forEach((user: any) => {
+                            if (user.user) activeUsernames.add(user.user);
+                        });
+                    }
+                } catch (e) {
+                    // Hotspot not configured
+                }
+
+                // Get PPPoE active sessions
+                try {
+                    const pppoeResult = await pppoeCommands.getActiveSessions(routerInfo);
+                    if (pppoeResult.success && pppoeResult.data) {
+                        pppoeResult.data.forEach((session: any) => {
+                            if (session.name) activeUsernames.add(session.name);
+                        });
+                    }
+                } catch (e) {
+                    // PPPoE not configured
+                }
+            }
+
+            // Update all customers to offline first
+            await supabase
+                .from('customers')
+                .update({ is_online: false })
+                .neq('id', 0);
+
+            // Update active users to online
+            if (activeUsernames.size > 0) {
+                await supabase
+                    .from('customers')
+                    .update({ is_online: true })
+                    .in('username', Array.from(activeUsernames));
+
+                logger.debug(`Synced ${activeUsernames.size} active users to online`);
+            }
+        } catch (error: any) {
+            logger.warn('Failed to sync customer online status', { error: error.message });
+        }
+    },
+
+    /**
      * Check a single router
      */
-    async checkRouter(router: RouterInfo): Promise<void> {
+    async checkRouter(router: any): Promise<void> {
+        // For RADIUS mode routers, check based on last heartbeat
+        if (router.connection_mode === 'radius') {
+            await this.checkRadiusModeRouter(router);
+            return;
+        }
+
+        // For API mode routers, connect directly
         try {
-            const resources = await mikrotikClient.getSystemResources(router);
+            const routerInfo: RouterInfo = {
+                id: router.id,
+                name: router.name,
+                host: router.host,
+                api_port: router.api_port,
+                api_username: router.api_username,
+                api_password: router.api_password,
+                use_ssl: router.use_ssl,
+                role: router.role
+            };
+
+            const resources = await mikrotikClient.getSystemResources(routerInfo);
 
             if (resources) {
                 const memoryPercent = Math.round(
@@ -109,6 +200,32 @@ export const healthMonitor = {
                 await db.updateRouterHealth(router.id, { status: 'offline' });
                 logger.error(`Health check failed for ${router.name}`, { error: error.message });
             }
+        }
+    },
+
+    /**
+     * Check a RADIUS mode router based on last heartbeat
+     */
+    async checkRadiusModeRouter(router: any): Promise<void> {
+        const OFFLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes without heartbeat = offline
+
+        const lastHeartbeat = router.last_heartbeat
+            ? new Date(router.last_heartbeat).getTime()
+            : 0;
+
+        const timeSinceHeartbeat = Date.now() - lastHeartbeat;
+
+        if (lastHeartbeat === 0) {
+            // Never received a heartbeat - mark as waiting for setup
+            await db.updateRouterHealth(router.id, { status: 'offline' });
+            logger.debug(`Router ${router.name} (RADIUS mode): Waiting for first heartbeat`);
+        } else if (timeSinceHeartbeat > OFFLINE_THRESHOLD_MS) {
+            // Heartbeat too old
+            await db.updateRouterHealth(router.id, { status: 'offline' });
+            logger.warn(`Router ${router.name} (RADIUS mode): No heartbeat for ${Math.round(timeSinceHeartbeat / 1000)}s - marking offline`);
+        } else {
+            // Recent heartbeat - router is online (status already updated by heartbeat callback)
+            logger.debug(`Router ${router.name} (RADIUS mode): Last heartbeat ${Math.round(timeSinceHeartbeat / 1000)}s ago`);
         }
     },
 };

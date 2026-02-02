@@ -62,12 +62,57 @@ export const mikrotikApi = {
     },
 
     /**
+     * Diagnose connection to a router (detailed troubleshooting)
+     */
+    async diagnoseRouterConnection(routerId: number): Promise<{
+        routerName: string;
+        host: string;
+        port: number;
+        username: string;
+        passwordProvided: boolean;
+        reachable: boolean;
+        portOpen: boolean;
+        authenticated: boolean;
+        identity?: string;
+        error?: string;
+        latencyMs?: number;
+        details: string[];
+    }> {
+        const response = await fetch(`${MIKROTIK_URL}/api/routers/${routerId}/diagnose`, {
+            method: 'POST',
+        });
+        return response.json();
+    },
+
+
+    /**
      * Get router system resources
      */
     async getRouterResources(routerId: number): Promise<RouterResources | null> {
         const response = await fetch(`${MIKROTIK_URL}/api/routers/${routerId}/resources`);
         return response.json();
     },
+
+    /**
+     * Get setup scripts for a router (RADIUS mode)
+     */
+    async getSetupScripts(routerId: number): Promise<{
+        success: boolean;
+        routerName: string;
+        routerId: number;
+        serviceUrl: string;
+        scripts: {
+            radiusScript: string;
+            heartbeatScript: string;
+            activeUsersScript: string;
+            fullSetupScript: string;
+            instructions: string;
+        };
+    }> {
+        const response = await fetch(`${MIKROTIK_URL}/api/routers/${routerId}/setup-scripts`);
+        return response.json();
+    },
+
 
     /**
      * Get all profiles (hotspot + PPPoE) from a router
