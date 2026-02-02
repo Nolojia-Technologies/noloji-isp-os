@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["cd noloji-isp-os && npm ci"]
+
+[phases.build]
+cmds = ["cd noloji-isp-os && npm run build"]
+
+[start]
+cmd = "cd noloji-isp-os && npm start"
