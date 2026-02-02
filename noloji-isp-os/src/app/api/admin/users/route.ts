@@ -2,18 +2,7 @@
 // Uses service role key to bypass RLS completely
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Create admin client with service role
-const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-    },
-});
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // Helper to generate temporary password
 function generateTemporaryPassword(length: number = 12): string {
@@ -38,12 +27,7 @@ function generateTemporaryPassword(length: number = 12): string {
 
 export async function POST(request: NextRequest) {
     try {
-        if (!supabaseServiceKey) {
-            return NextResponse.json(
-                { error: 'Service role key not configured' },
-                { status: 500 }
-            );
-        }
+        const supabaseAdmin = getSupabaseAdmin();
 
         const body = await request.json();
         const { email, full_name, phone, role, organization_id, landlord_id, password } = body;
@@ -163,12 +147,7 @@ export async function POST(request: NextRequest) {
 // GET - List users (with filters)
 export async function GET(request: NextRequest) {
     try {
-        if (!supabaseServiceKey) {
-            return NextResponse.json(
-                { error: 'Service role key not configured' },
-                { status: 500 }
-            );
-        }
+        const supabaseAdmin = getSupabaseAdmin();
 
         const { searchParams } = new URL(request.url);
         const role = searchParams.get('role');

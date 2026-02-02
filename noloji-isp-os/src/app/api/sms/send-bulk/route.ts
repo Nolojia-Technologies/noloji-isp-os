@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { sendSms as sendViaBytewaveAPI, isBytewaveConfigured } from '@/services/bytewave-sms-service';
 import { replaceTemplateVariables, type SmsVariableContext } from '@/lib/sms-template-variables';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Check if message contains Unicode (non-GSM characters)
 function containsUnicode(text: string): boolean {
@@ -23,6 +18,7 @@ function calculateSmsSegments(text: string): number {
 
 export async function POST(request: NextRequest) {
     try {
+        const supabase = getSupabaseAdmin();
         const body = await request.json();
         const { recipients, message, sender_id = 'BytewaveSMS' } = body;
 

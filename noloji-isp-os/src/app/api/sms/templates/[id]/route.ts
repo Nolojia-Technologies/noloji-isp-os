@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // PUT: Update template
 export async function PUT(
@@ -13,6 +8,7 @@ export async function PUT(
 ) {
     const { id: paramId } = await params;
     try {
+        const supabase = getSupabaseAdmin();
         const id = parseInt(paramId);
         if (isNaN(id)) {
             return NextResponse.json(
@@ -64,6 +60,7 @@ export async function DELETE(
 ) {
     const { id: paramId } = await params;
     try {
+        const supabase = getSupabaseAdmin();
         const id = parseInt(paramId);
         if (isNaN(id)) {
             return NextResponse.json(

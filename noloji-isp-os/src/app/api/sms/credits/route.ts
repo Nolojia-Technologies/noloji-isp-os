@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // POST: Add credits
 export async function POST(request: NextRequest) {
     try {
+        const supabase = getSupabaseAdmin();
         const body = await request.json();
         const { amount, cost_per_sms } = body;
 
@@ -56,6 +52,7 @@ export async function POST(request: NextRequest) {
 // PUT: Update pricing
 export async function PUT(request: NextRequest) {
     try {
+        const supabase = getSupabaseAdmin();
         const body = await request.json();
         const { cost_per_sms, currency } = body;
 

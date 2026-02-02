@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { isBytewaveConfigured, checkBalance as checkProviderBalance } from '@/services/bytewave-sms-service';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Use service role to bypass RLS
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export async function GET() {
     try {
+        const supabase = getSupabaseAdmin();
         const { data, error } = await supabase
             .from('sms_credits')
             .select('*')

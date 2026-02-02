@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 // GET: List templates
 export async function GET(request: NextRequest) {
     try {
+        const supabase = getSupabaseAdmin();
         const { searchParams } = new URL(request.url);
         const category = searchParams.get('category');
 
@@ -38,6 +34,7 @@ export async function GET(request: NextRequest) {
 // POST: Create template
 export async function POST(request: NextRequest) {
     try {
+        const supabase = getSupabaseAdmin();
         const body = await request.json();
         const { name, category, content, variables } = body;
 

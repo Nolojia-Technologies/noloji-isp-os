@@ -2,22 +2,14 @@
 // Uses service role key to bypass RLS
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 
 export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        if (!supabaseServiceKey) {
-            return NextResponse.json(
-                { error: 'Service role key not configured' },
-                { status: 500 }
-            );
-        }
+        const supabaseAdmin = getSupabaseAdmin();
 
         const { id } = await params;
 
@@ -27,13 +19,6 @@ export async function GET(
                 { status: 400 }
             );
         }
-
-        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false,
-            },
-        });
 
         const { data, error } = await supabaseAdmin
             .from('landlord_users')
