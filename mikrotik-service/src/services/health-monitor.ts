@@ -75,6 +75,12 @@ export const healthMonitor = {
             for (const router of routers) {
                 if (!router.is_active) continue;
 
+                // Skip RADIUS mode routers - they push active users via webhook
+                if (router.connection_mode === 'radius') {
+                    logger.debug(`Skipping ${router.name} - using RADIUS mode (webhook push)`);
+                    continue;
+                }
+
                 const routerInfo = {
                     id: router.id,
                     name: router.name,
@@ -154,7 +160,26 @@ export const healthMonitor = {
                 role: router.role
             };
 
-            const resources = await mikrotikClient.getSystemResources(routerInfo);
+            // Retry logic for unstable connections
+            let resources = null;
+            let lastError = null;
+
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    resources = await mikrotikClient.getSystemResources(routerInfo);
+                    if (resources) break;
+                } catch (e: any) {
+                    lastError = e;
+                    if (attempt < 3) {
+                        logger.warn(`Router ${router.name} connection attempt ${attempt} failed, retrying... (${e.message})`);
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
+                    }
+                }
+            }
+
+            if (!resources && lastError) {
+                throw lastError;
+            }
 
             if (resources) {
                 const memoryPercent = Math.round(

@@ -122,7 +122,7 @@ export class MikrotikApiClient {
                 port: router.api_port,
                 user: router.api_username,
                 password: router.api_password,
-                timeout: 15000, // 15 second timeout for auth
+                timeout: 30000, // 30 second timeout for auth
             });
 
             await client.connect();
@@ -187,7 +187,7 @@ export class MikrotikApiClient {
             port: router.api_port,
             user: router.api_username,
             password: router.api_password,
-            timeout: 15000, // 15 seconds for better reliability
+            timeout: 30000, // 30 seconds for better reliability over unstable networks
         });
 
         try {
