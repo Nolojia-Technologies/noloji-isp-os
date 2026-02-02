@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { querySTKPushStatus } from '@/services/daraja-service';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+    if (!_supabase) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!supabaseUrl || !supabaseServiceKey) {
+            throw new Error('Missing Supabase environment variables');
+        }
+        _supabase = createClient(supabaseUrl, supabaseServiceKey);
+    }
+    return _supabase;
+}
 
 /**
  * GET /api/payments/stk-status?checkout_request_id=...
@@ -24,7 +33,7 @@ export async function GET(request: NextRequest) {
         }
 
         // First check our database for the status
-        const { data: transaction, error: dbError } = await supabase
+        const { data: transaction, error: dbError } = await getSupabase()
             .from('mpesa_stk_transactions')
             .select('*')
             .eq('checkout_request_id', checkoutRequestId)
@@ -60,7 +69,7 @@ export async function GET(request: NextRequest) {
             const newStatus = queryResult.resultCode === '0' ? 'completed' : 'failed';
 
             if (newStatus !== transaction.status) {
-                await supabase
+                await getSupabase()
                     .from('mpesa_stk_transactions')
                     .update({
                         status: newStatus,

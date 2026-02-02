@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { sendSms as sendViaBytewaveAPI, isBytewaveConfigured } from '@/services/bytewave-sms-service';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+    if (!_supabase) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!supabaseUrl || !supabaseServiceKey) {
+            throw new Error('Missing Supabase environment variables');
+        }
+        _supabase = createClient(supabaseUrl, supabaseServiceKey);
+    }
+    return _supabase;
+}
 
 // Check if message contains Unicode (non-GSM characters)
 function containsUnicode(text: string): boolean {
@@ -41,7 +50,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Check SMS credits
-        const { data: credits, error: creditsError } = await supabase
+        const { data: credits, error: creditsError } = await getSupabase()
             .from('sms_credits')
             .select('*')
             .limit(1)
@@ -66,7 +75,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Create log entry (pending)
-        const { data: logEntry, error: logError } = await supabase
+        const { data: logEntry, error: logError } = await getSupabase()
             .from('sms_logs')
             .insert({
                 recipient,
@@ -97,7 +106,7 @@ export async function POST(request: NextRequest) {
 
             if (!providerResponse.success) {
                 // Update log with failure
-                await supabase
+                await getSupabase()
                     .from('sms_logs')
                     .update({
                         status: 'failed',
@@ -112,7 +121,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Update log with success
-            await supabase
+            await getSupabase()
                 .from('sms_logs')
                 .update({
                     status: 'sent',
@@ -123,7 +132,7 @@ export async function POST(request: NextRequest) {
                 .eq('id', logEntry.id);
 
             // Deduct credits
-            await supabase
+            await getSupabase()
                 .from('sms_credits')
                 .update({ balance: credits.balance - creditsNeeded })
                 .eq('id', credits.id);
@@ -141,7 +150,7 @@ export async function POST(request: NextRequest) {
 
         } catch (sendError: any) {
             // Update log with failure
-            await supabase
+            await getSupabase()
                 .from('sms_logs')
                 .update({
                     status: 'failed',

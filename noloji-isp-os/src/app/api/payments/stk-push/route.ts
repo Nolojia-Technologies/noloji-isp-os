@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { initiateSTKPush, isDarajaConfigured, getConfigStatus } from '@/services/daraja-service';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+// Lazy initialization to avoid build-time errors
+let _supabase: SupabaseClient | null = null;
+function getSupabase(): SupabaseClient {
+    if (!_supabase) {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!supabaseUrl || !supabaseServiceKey) {
+            throw new Error('Missing Supabase environment variables');
+        }
+        _supabase = createClient(supabaseUrl, supabaseServiceKey);
+    }
+    return _supabase;
+}
 
 /**
  * POST /api/payments/stk-push
@@ -50,7 +59,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Fetch customer to get landlord_id
-        const { data: customer, error: customerError } = await supabase
+        const { data: customer, error: customerError } = await getSupabase()
             .from('landlord_customers')
             .select('id, name, landlord_id')
             .eq('id', customer_id)
